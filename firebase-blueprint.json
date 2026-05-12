@@ -1,0 +1,245 @@
+{
+  "entities": {
+    "Profile": {
+      "title": "User Profile",
+      "description": "User account data and role",
+      "type": "object",
+      "properties": {
+        "full_name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "programador", "operador", "acabamento"] },
+        "company_id": { "type": "string" },
+        "avatar_url": { "type": "string" },
+        "active": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["full_name", "role", "company_id"]
+    },
+    "Machine": {
+      "title": "Machine",
+      "description": "CNC Machine or equipment",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["cnc_router", "laser_co2", "laser_fiber", "impressora_uv"] },
+        "status": { "type": "string", "enum": ["disponivel", "setup", "em_operacao", "manutencao", "parada", "offline"] },
+        "company_id": { "type": "string" },
+        "active": { "type": "boolean" },
+        "current_order_id": { "type": "string" },
+        "operator_id": { "type": "string" }
+      },
+      "required": ["name", "type", "status", "company_id"]
+    },
+    "WorkOrder": {
+      "title": "Work Order",
+      "description": "Production Order (OS)",
+      "type": "object",
+      "properties": {
+        "number": { "type": "string" },
+        "client_name": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string", "enum": ["aguardando", "fila", "programacao", "setup", "em_producao", "acabamento", "concluido", "cancelado"] },
+        "priority": { "type": "string", "enum": ["baixa", "normal", "alta", "urgente"] },
+        "material_id": { "type": "string" },
+        "quantity": { "type": "number" },
+        "machine_id": { "type": "string" },
+        "deadline": { "type": "string", "format": "date" },
+        "notes": { "type": "string" },
+        "material_type": { "type": "string" },
+        "thickness_mm": { "type": "number" },
+        "cutting_perimeter_mm": { "type": "number" },
+        "total_pierces": { "type": "number" },
+        "time_cad": { "type": "number" },
+        "time_cam": { "type": "number" },
+        "time_setup": { "type": "number" },
+        "time_execution": { "type": "number" },
+        "current_stage": { "type": "string", "enum": ["cad", "cam", "setup", "execution", "finished"] },
+        "occurrences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["breakdown", "material_fail", "file_error", "tool_break", "other"] },
+              "description": { "type": "string" },
+              "timestamp": { "type": "string", "format": "date-time" },
+              "operator_id": { "type": "string" }
+            }
+          }
+        },
+        "company_id": { "type": "string" },
+        "created_by": { "type": "string" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["number", "title", "status", "company_id"]
+    },
+    "InventoryItem": {
+      "title": "Inventory Item",
+      "description": "Stock of materials/sheets",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "dimensions": { "type": "string" },
+        "thickness": { "type": "number" },
+        "quantity": { "type": "number" },
+        "min_quantity": { "type": "number" },
+        "unit": { "type": "string" },
+        "company_id": { "type": "string" }
+      },
+      "required": ["name", "quantity", "company_id"]
+    },
+    "TimeRecord": {
+      "title": "Time Record",
+      "description": "Production time tracking",
+      "type": "object",
+      "properties": {
+        "order_id": { "type": "string" },
+        "machine_id": { "type": "string" },
+        "operator_id": { "type": "string" },
+        "mode": { "type": "string", "enum": ["setup", "producao"] },
+        "start_time": { "type": "string", "format": "date-time" },
+        "end_time": { "type": "string", "format": "date-time" },
+        "duration_seconds": { "type": "number" },
+        "company_id": { "type": "string" }
+      },
+      "required": ["order_id", "machine_id", "operator_id", "mode", "start_time", "company_id"]
+    },
+    "CutTechnology": {
+      "title": "Cut Technology",
+      "description": "Technical parameters library",
+      "type": "object",
+      "properties": {
+        "material": { "type": "string" },
+        "thickness": { "type": "number" },
+        "machine_type": { "type": "string" },
+        "quality": { "type": "string", "enum": ["economico", "producao", "precisao"] },
+        "speed": { "type": "number" },
+        "power": { "type": "number" },
+        "gas_pressure": { "type": "number" },
+        "lead_in": { "type": "number" },
+        "lead_out": { "type": "number" },
+        "pierce_time": { "type": "number" },
+        "company_id": { "type": "string" }
+      },
+      "required": ["material", "thickness", "machine_type", "speed", "company_id"]
+    },
+    "QualityRecord": {
+      "title": "Quality Record",
+      "description": "Quality logs and rework tracking",
+      "type": "object",
+      "properties": {
+        "order_id": { "type": "string" },
+        "machine_id": { "type": "string" },
+        "operator_id": { "type": "string" },
+        "type": { "type": "string", "enum": ["rejeito", "retrabalho", "aprovado"] },
+        "reason": { "type": "string" },
+        "quantity": { "type": "number" },
+        "scrap_area_mm2": { "type": "number" },
+        "dimensional_deviation": { "type": "number", "description": "Measured deviation in mm" },
+        "company_id": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["order_id", "type", "company_id"]
+    },
+    "OEEMetric": {
+      "title": "OEE Metric",
+      "description": "Daily OEE calculation snapshot",
+      "type": "object",
+      "properties": {
+        "machine_id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "availability": { "type": "number" },
+        "performance": { "type": "number" },
+        "quality": { "type": "number" },
+        "oee": { "type": "number" },
+        "company_id": { "type": "string" }
+      },
+      "required": ["machine_id", "date", "oee", "company_id"]
+    },
+    "MachineEvent": {
+      "title": "Machine Event",
+      "description": "Timeline of machine status changes",
+      "type": "object",
+      "properties": {
+        "machine_id": { "type": "string" },
+        "status": { "type": "string" },
+        "reason": { "type": "string" },
+        "started_at": { "type": "string", "format": "date-time" },
+        "ended_at": { "type": "string", "format": "date-time" },
+        "duration_sec": { "type": "number" },
+        "company_id": { "type": "string" }
+      }
+    },
+    "NestingProject": {
+      "title": "Nesting Project",
+      "description": "Industrial nesting project for plate optimization",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "material_id": { "type": "string" },
+        "thickness": { "type": "number" },
+        "plate_width": { "type": "number" },
+        "plate_height": { "type": "number" },
+        "status": { "type": "string", "enum": ["draft", "optimizing", "ready", "mes"] },
+        "efficiency": { "type": "number" },
+        "waste": { "type": "number" },
+        "company_id": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "material_id", "thickness", "company_id"]
+    },
+    "NestingPart": {
+      "title": "Nesting Part",
+      "description": "Part to be nested",
+      "type": "object",
+      "properties": {
+        "project_id": { "type": "string" },
+        "order_id": { "type": "string" },
+        "name": { "type": "string" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "quantity": { "type": "number" },
+        "rotation_allowed": { "type": "boolean" },
+        "grain_direction": { "type": "string", "enum": ["horizontal", "vertical", "none"] }
+      },
+      "required": ["project_id", "name", "width", "height", "quantity"]
+    },
+    "NestingLayout": {
+      "title": "Nesting Layout",
+      "description": "The result of a nesting optimization",
+      "type": "object",
+      "properties": {
+        "project_id": { "type": "string" },
+        "parts_placed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "part_id": { "type": "string" },
+              "x": { "type": "number" },
+              "y": { "type": "number" },
+              "rotation": { "type": "number" },
+              "width": { "type": "number" },
+              "height": { "type": "number" }
+            }
+          }
+        },
+        "sheet_usage_mm2": { "type": "number" },
+        "efficiency": { "type": "number" }
+      }
+    }
+  },
+  "firestore": {
+    "/profiles/{uid}": { "schema": "Profile", "description": "User profiles" },
+    "/machines/{machineId}": { "schema": "Machine", "description": "Industrial equipment" },
+    "/orders/{orderId}": { "schema": "WorkOrder", "description": "Production orders" },
+    "/inventory/{itemId}": { "schema": "InventoryItem", "description": "Material stock" },
+    "/time_records/{recordId}": { "schema": "TimeRecord", "description": "OEE tracking data" },
+    "/technologies/{techId}": { "schema": "CutTechnology", "description": "Cutting parameters library" },
+    "/quality_records/{recordId}": { "schema": "QualityRecord", "description": "Quality logs" },
+    "/oee_metrics/{metricId}": { "schema": "OEEMetric", "description": "OEE history" },
+    "/machine_events/{eventId}": { "schema": "MachineEvent", "description": "Status timeline" },
+    "/nesting_projects/{projectId}": { "schema": "NestingProject", "description": "Plate optimization projects" },
+    "/nesting_projects/{projectId}/parts/{partId}": { "schema": "NestingPart", "description": "Parts for a project" },
+    "/nesting_projects/{projectId}/layouts/{layoutId}": { "schema": "NestingLayout", "description": "Saved layouts" }
+  }
+}

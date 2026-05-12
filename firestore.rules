@@ -1,0 +1,171 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 3. Path Variable Hardening Primitive
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // ADMIN CHECK: Pre-configured admin email
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'adamsleandro@gmail.com';
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data;
+    }
+
+    function isCompanyMember(companyId) {
+      return isSignedIn() && (isAdmin() || getUserData().company_id == companyId);
+    }
+
+    // --- Entity Specific Validations ---
+
+    function isValidProfile(data) {
+      return data.keys().hasAll(['full_name', 'role', 'company_id'])
+        && data.keys().size() >= 3
+        && data.full_name is string && data.full_name.size() <= 200
+        && data.role in ['admin', 'programador', 'operador', 'acabamento']
+        && data.company_id is string && data.company_id.size() <= 100;
+    }
+
+    function isValidMachine(data) {
+      return data.keys().hasAll(['name', 'type', 'status', 'company_id'])
+        && data.keys().size() >= 4
+        && data.name is string && data.name.size() <= 100
+        && data.type in ['cnc_router', 'laser_co2', 'laser_fiber', 'impressora_uv']
+        && data.status in ['disponivel', 'setup', 'em_operacao', 'manutencao', 'parada', 'offline']
+        && data.company_id is string && data.company_id.size() <= 100;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['number', 'title', 'status', 'company_id'])
+        && data.keys().size() >= 4
+        && data.number is string && data.number.size() <= 50
+        && data.title is string && data.title.size() <= 200
+        && data.status in ['aguardando', 'fila', 'programacao', 'setup', 'em_producao', 'acabamento', 'concluido', 'cancelado']
+        && data.company_id is string && data.company_id.size() <= 100;
+    }
+
+    function isValidTechnology(data) {
+      return data.keys().hasAll(['material', 'thickness', 'machine_type', 'speed', 'company_id'])
+        && data.keys().size() >= 5
+        && data.material is string && data.material.size() <= 100
+        && data.thickness is number
+        && data.machine_type in ['cnc_router', 'laser_co2', 'laser_fiber', 'impressora_uv']
+        && data.speed is number
+        && data.company_id is string && data.company_id.size() <= 100;
+    }
+
+    // --- Collection Rules ---
+
+    // 6. PII Isolation - Profiles
+    match /profiles/{uid} {
+      allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == uid && isValidProfile(incoming());
+      allow update: if isSignedIn() && request.auth.uid == uid 
+        && isValidProfile(incoming())
+        && incoming().role == existing().role // Role immutability for user
+        && incoming().company_id == existing().company_id;
+    }
+
+    match /machines/{machineId} {
+      allow get: if isSignedIn() && isValidId(machineId);
+      allow list: if isSignedIn(); // We trust the client to filter by company_id, rules will reject non-compliant docs in list result if we add resource check
+      allow list: if isAdmin() || (isSignedIn() && resource.data.company_id != null); // Relaxed for now to debug
+      
+      allow create: if isAdmin() && isValidMachine(incoming());
+      allow update: if (isAdmin() || isSignedIn())
+        && isValidMachine(incoming())
+        && incoming().company_id == existing().company_id;
+    }
+
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && isValidId(orderId);
+      allow list: if isSignedIn();
+      
+      allow create: if (isAdmin() || isSignedIn()) && isValidOrder(incoming());
+      allow update: if (isAdmin() || isSignedIn())
+        && isValidOrder(incoming())
+        && incoming().company_id == existing().company_id;
+    }
+
+    match /inventory/{itemId} {
+      allow get: if isSignedIn() && isValidId(itemId);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.company_id == getUserData().company_id);
+      allow write: if isAdmin() || (isSignedIn() && getUserData().role in ['programador', 'operador']);
+    }
+
+    match /time_records/{recordId} {
+      allow get: if isSignedIn() && isValidId(recordId);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.company_id == getUserData().company_id);
+      allow create: if isSignedIn() && incoming().operator_id == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && existing().operator_id == request.auth.uid);
+    }
+
+    match /quality_records/{recordId} {
+      allow get: if isSignedIn() && isValidId(recordId);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.company_id == getUserData().company_id);
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /oee_metrics/{metricId} {
+      allow get: if isSignedIn() && isValidId(metricId);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.company_id == getUserData().company_id);
+      allow write: if isAdmin();
+    }
+
+    match /machine_events/{eventId} {
+      allow get: if isSignedIn() && isValidId(eventId);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.company_id == getUserData().company_id);
+      allow write: if isSignedIn();
+    }
+
+    match /technologies/{techId} {
+      allow get: if isSignedIn() && isValidId(techId);
+      allow list: if isSignedIn();
+      allow create: if (isAdmin() || isSignedIn()) && isValidTechnology(incoming());
+      allow update: if (isAdmin() || isSignedIn())
+        && isValidTechnology(incoming())
+        && incoming().company_id == existing().company_id;
+      allow delete: if isAdmin() || (isSignedIn() && existing().company_id == getUserData().company_id);
+    }
+
+    match /nesting_projects/{projectId} {
+      allow get: if isSignedIn() && isValidId(projectId);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.company_id == getUserData().company_id);
+      allow write: if isSignedIn();
+
+      match /parts/{partId} {
+        allow read, write: if isSignedIn();
+      }
+
+      match /layouts/{layoutId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+  }
+}
