@@ -1,13 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../core/auth';
 import { UserRole } from '../../shared/types/auth.types';
-import { ArrowRight, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Lock, Mail, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export function LoginPage() {
   const { signIn } = useAuth();
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleLogin = async (role: UserRole) => {
-    await signIn(role);
+    try {
+      setErrorMsg('');
+      await signIn(role);
+    } catch (e: any) {
+      setErrorMsg(e.message || 'Erro ao fazer login. Verifique os domínios autorizados no Firebase.');
+    }
   };
 
   return (
@@ -26,6 +32,15 @@ export function LoginPage() {
           </div>
 
           <div className="space-y-6">
+            {errorMsg && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+                <AlertCircle size={20} className="text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-bold text-red-800">Erro de Autenticação</h3>
+                  <p className="text-xs text-red-600 mt-1">{errorMsg}</p>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <h2 className="text-3xl font-black text-slate-900 tracking-tight">Bem-vindo ao MES</h2>
               <p className="text-slate-500 font-medium italic">Selecione seu perfil de acesso para entrar no sistema operacional de produção.</p>

@@ -7,7 +7,7 @@ export interface TimelineEvent {
   machine: string;
   startHour: number;
   duration: number;
-  status: 'completed' | 'ongoing' | 'pending';
+  status: 'completed' | 'ongoing' | 'pending' | 'concluido';
 }
 
 interface ProductionTimelineProps {

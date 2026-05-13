@@ -17,6 +17,8 @@ import { ProcessTimelinePage } from './modules/production/ProcessTimelinePage';
 import { MESAnalyticsPage } from './modules/production/MESAnalyticsPage';
 import { AnimatePresence, motion } from 'motion/react';
 
+import { ErrorBoundary } from './components/ErrorBoundary';
+
 const MOCK_NOTIFICATIONS: AppNotification[] = [
   {
     id: '1',
@@ -78,7 +80,11 @@ export default function App() {
       case 'tech_params':
         return <TechnologyLibraryPage />;
       case 'nesting':
-        return <NestingPage />;
+        return (
+          <ErrorBoundary>
+            <NestingPage />
+          </ErrorBoundary>
+        );
       case 'vsm':
         return <ProcessTimelinePage />;
       case 'mes':

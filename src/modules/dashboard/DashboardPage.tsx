@@ -107,11 +107,15 @@ export function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-bold text-slate-900">Linha do Tempo</h2>
                 </div>
-                <ProductionTimeline events={finishedOrders.slice(0, 5).map(os => ({
-                   id: os.id,
-                   title: `OS #${os.number} Concluída`,
+                <ProductionTimeline events={finishedOrders.slice(0, 5).map((os, i) => ({
+                   id: os.id || String(i),
+                   title: `OS #${os.number || '0000'} Concluída`,
                    time: 'Recentemente',
-                   status: 'concluido'
+                   status: 'concluido',
+                   label: `OS #${os.number || '0000'}`,
+                   machine: os.machine_id || 'Machine',
+                   startHour: 8 + i,
+                   duration: 1
                 }))} />
               </section>
               

@@ -5,13 +5,30 @@ import {
   ChevronRight, Play, Settings, Download, Plus, LayoutGrid,
   History, Package
 } from 'lucide-react';
-import { Stage, Layer, Rect, Group, Text } from 'react-konva';
+import { Stage, Layer, Rect, Group, Text, Image } from 'react-konva';
 import { useDashboardData } from '../../shared/hooks/useDashboardData';
 import { GeminiNestingService } from '../../services/geminiNesting';
 import { ProductionService } from '../../services/production';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { Helper } from 'dxf';
 import { useAuth } from '../../core/auth';
+
+const SvgImage = ({ url, width, height }: { url: string, width: number, height: number }) => {
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const img = new window.Image();
+    img.src = url;
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      setImage(img);
+    };
+  }, [url]);
+
+  if (!image) return null;
+  return <Image image={image} width={width} height={height} />;
+};
 
 interface NestedPart {
   id: string;
@@ -23,7 +40,9 @@ interface NestedPart {
   rotation: number;
   color: string;
   status: 'pending' | 'placed' | 'locked';
+  svgDataUrl?: string;
 }
+
 
 export function NestingPage() {
   const { orders } = useDashboardData();
@@ -38,6 +57,71 @@ export function NestingPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { profile } = useAuth();
   const [activeSidebar, setActiveSidebar] = useState<'parts' | 'scraps' | 'history'>('parts');
+  const [historyProjects, setHistoryProjects] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // At the top level near the other refs
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportDxf = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        let svgContent = '';
+        let w = 150 + Math.random() * 150;
+        let h = 100 + Math.random() * 100;
+
+        if (file.name.toLowerCase().endsWith('.dxf')) {
+          const helper = new Helper(content);
+          
+          if (helper.parsed?.header?.extMin && helper.parsed?.header?.extMax) {
+            const { extMin, extMax } = helper.parsed.header;
+            const parsedW = Math.abs(extMax.x - extMin.x);
+            const parsedH = Math.abs(extMax.y - extMin.y);
+            if (parsedW > 0 && parsedH > 0) {
+              w = parsedW;
+              h = parsedH;
+            }
+          }
+
+          const rawSvg = helper.toSVG();
+          // Inject viewBox and styling to make it visible
+          const styledSvg = rawSvg.replace('<svg', '<svg width="100%" height="100%" ');
+          svgContent = styledSvg;
+        } else if (file.name.toLowerCase().endsWith('.svg')) {
+          svgContent = content;
+        }
+
+        const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgContent);
+
+        const newPart: NestedPart = {
+          id: Math.random().toString(36).substr(2, 9),
+          orderId: 'IMPORTED',
+          x: selectedSheet.margin,
+          y: selectedSheet.margin,
+          w: w,
+          h: h,
+          rotation: 0,
+          color: '#ec4899', // Pink for imported items
+          status: 'placed',
+          svgDataUrl: dataUrl
+        };
+
+        setNestedParts(prev => [...prev, newPart]);
+        alert(`O arquivo '${file.name}' foi importado com sucesso.`);
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao processar o arquivo DXF/SVG. Talvez o formato não seja suportado ou esteja corrompido.');
+      }
+    };
+    reader.readAsText(file);
+
+    e.target.value = ''; // Reset input
+  };
 
   // Filter pending orders
   const pendingOrders = orders.filter(o => o.status === 'aguardando' || o.status === 'programacao');
@@ -50,6 +134,37 @@ export function NestingPage() {
       setScale(s);
     }
   }, [selectedSheet.w]);
+
+  const fetchHistory = async () => {
+    if (!profile?.company_id) return;
+    setIsLoadingHistory(true);
+    try {
+      const projects = await ProductionService.getNestingProjects(profile.company_id);
+      setHistoryProjects(projects);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSidebar === 'history') {
+      fetchHistory();
+    }
+  }, [activeSidebar, profile?.company_id]);
+
+  const loadProject = async (project: any) => {
+    try {
+      const parts = await ProductionService.getNestingProjectParts(project.id);
+      setSelectedSheet({ w: project.plate_width, h: project.plate_height, margin: 10 });
+      setNestedParts(parts as NestedPart[]);
+      alert('Projeto carregado com sucesso!');
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao carregar projeto.');
+    }
+  };
 
   const handleAutoNesting = () => {
     setIsOptimizing(true);
@@ -253,13 +368,46 @@ export function NestingPage() {
               </div>
             )}
             
+            {activeSidebar === 'history' && (
+              <div className="space-y-3">
+                 {isLoadingHistory ? (
+                   <p className="text-xs text-slate-400 text-center italic py-10">Carregando histórico...</p>
+                 ) : historyProjects.length === 0 ? (
+                   <p className="text-xs text-slate-400 text-center italic py-10">Nenhum projeto salvo.</p>
+                 ) : (
+                   historyProjects.map(proj => (
+                     <div key={proj.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl hover:border-blue-400 transition-all">
+                       <p className="text-[10px] font-black text-slate-900 uppercase">{proj.title || 'Projeto sem nome'}</p>
+                       <p className="text-[9px] font-bold text-slate-500 mb-2">Aproveitamento: {proj.efficiency?.toFixed(1)}%</p>
+                       <button 
+                         onClick={() => loadProject(proj)}
+                         className="w-full py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[8px] font-black uppercase transition-all"
+                       >
+                         Carregar Projeto
+                       </button>
+                     </div>
+                   ))
+                 )}
+              </div>
+            )}
+            
             {activeSidebar === 'parts' && pendingOrders.length === 0 && (
               <div className="text-center py-20 opacity-20 italic text-xs">Fila de nesting vazia.</div>
             )}
           </div>
           {activeSidebar === 'parts' && (
             <div className="p-4 border-t border-slate-100">
-              <button className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-[10px] font-black uppercase text-slate-400 hover:border-slate-400 hover:text-slate-600 transition-all">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept=".dxf,.svg"
+                onChange={handleImportDxf}
+              />
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-[10px] font-black uppercase text-slate-400 hover:border-slate-400 hover:text-slate-600 transition-all"
+              >
                 Importar DXF/SVG
               </button>
             </div>
@@ -334,11 +482,18 @@ export function NestingPage() {
                         width={part.w * scale}
                         height={part.h * scale}
                         fill={part.color}
-                        opacity={0.3}
+                        opacity={part.svgDataUrl ? 0.1 : 0.3}
                         stroke={selectedId === part.id ? '#fff' : part.color}
                         strokeWidth={selectedId === part.id ? 2 : 1}
                         cornerRadius={4}
                       />
+                      {part.svgDataUrl && (
+                        <SvgImage 
+                          url={part.svgDataUrl} 
+                          width={part.w * scale} 
+                          height={part.h * scale} 
+                        />
+                      )}
                       {/* Industrial Detail: Cutting sequence number */}
                       <Text
                         text={nestedParts.indexOf(part) + 1 + ""}

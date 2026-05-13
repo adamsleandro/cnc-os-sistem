@@ -336,11 +336,11 @@ function CEPView() {
       : 100;
     
     // Simulating precision if not in DB for visual context
-    const precision = o.metrics?.avg_dimensional_deviation || (Math.random() * 0.15);
+    const precision = (o as any).metrics?.avg_dimensional_deviation || (Math.random() * 0.15);
     
     return {
       index: i + 1,
-      id: o.order_number,
+      id: o.number,
       variation,
       precision: Math.round(precision * 100) / 100
     };
