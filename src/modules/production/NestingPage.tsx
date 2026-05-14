@@ -239,31 +239,37 @@ export function NestingPage() {
   };
 
   const handleAiOptimize = async () => {
+    if (nestedParts.length === 0) {
+      alert("Gere o layout inicial ou importe peças antes de otimizar com IA.");
+      return;
+    }
+    
     setIsOptimizing(true);
     setAiAnalysis(null);
 
-    const parts = pendingOrders.map(o => ({
-      id: o.id,
-      width: 200, 
-      height: 150,
+    // Pass the currently placed parts to get realistic suggestions
+    const partsToOptimize = nestedParts.map(p => ({
+      id: p.id,
+      width: Math.round(p.w), 
+      height: Math.round(p.h),
       quantity: 1
     }));
 
     const analysis = await GeminiNestingService.getOptimizationSuggestions(
-      parts,
+      partsToOptimize,
       selectedSheet.w,
       selectedSheet.h
     );
 
     setAiAnalysis(analysis);
-    handleAutoNesting();
     setIsOptimizing(false);
   };
 
   const totalArea = selectedSheet.w * selectedSheet.h;
   const usedArea = nestedParts.reduce((acc, p) => acc + (p.w * p.h), 0);
   const yieldPercent = totalArea > 0 ? (usedArea / totalArea) * 100 : 0;
-  const wastePercent = 100 - yieldPercent;
+  const displayYield = aiAnalysis ? (aiAnalysis.yield_estimation || yieldPercent) : yieldPercent;
+  const wastePercent = 100 - displayYield;
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
@@ -280,14 +286,6 @@ export function NestingPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button 
-            onClick={handleAiOptimize}
-            disabled={isOptimizing}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
-          >
-            <Cpu size={14} className={cn(isOptimizing && "animate-spin")} />
-            IA Optimizer
-          </button>
           <button 
             onClick={handleAutoNesting}
             className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
@@ -519,22 +517,29 @@ export function NestingPage() {
             </h3>
             
             <div className="space-y-4">
-              <div className="bg-slate-900 p-4 rounded-2xl text-white">
+              <div className="bg-slate-900 p-4 rounded-2xl text-white relative overflow-hidden">
+                {aiAnalysis && (
+                  <div className="absolute top-0 right-0 bg-blue-600 text-[8px] font-black uppercase px-2 py-1 rounded-bl-lg">
+                    IA Otimizado
+                  </div>
+                )}
                 <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Aproveitamento Final</p>
                 <div className="flex items-end justify-between">
                   <h4 className={cn(
                     "text-3xl font-black italic",
-                    yieldPercent > 80 ? "text-emerald-400" : "text-amber-400"
-                  )}>{yieldPercent.toFixed(1)}%</h4>
+                    displayYield > 80 ? "text-emerald-400" : "text-amber-400",
+                    aiAnalysis && "text-blue-400"
+                  )}>{displayYield.toFixed(1)}%</h4>
                   <p className="text-[10px] text-slate-500 font-bold mb-1">ALVO: 85%</p>
                 </div>
                 <div className="mt-3 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
                   <motion.div 
                     initial={{ width: 0 }}
-                    animate={{ width: `${yieldPercent}%` }}
+                    animate={{ width: `${displayYield}%` }}
                     className={cn(
                       "h-full rounded-full",
-                      yieldPercent > 80 ? "bg-emerald-500" : "bg-amber-500"
+                      displayYield > 80 ? "bg-emerald-500" : "bg-amber-500",
+                      aiAnalysis && "bg-blue-500"
                     )}
                   />
                 </div>
@@ -550,6 +555,15 @@ export function NestingPage() {
                   <p className="text-xl font-black text-blue-600">14m</p>
                 </div>
               </div>
+
+              <button 
+                onClick={handleAiOptimize}
+                disabled={isOptimizing || nestedParts.length === 0}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-blue-500/20 transition-all"
+              >
+                <Zap size={14} className={cn(isOptimizing && "animate-pulse")} />
+                {isOptimizing ? 'Analisando Layout...' : 'Otimizar Layout com IA'}
+              </button>
             </div>
           </div>
 

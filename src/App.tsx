@@ -69,8 +69,9 @@ export default function App() {
       case 'dashboard':
         return <DashboardPage />;
       case 'production':
-        // If programmer/admin, show queue. If operator, show mode.
-        return profile.role === 'operador' ? <OperatorModePage /> : <ProductionQueuePage />;
+        return <OperatorModePage />;
+      case 'orders':
+        return <ProductionQueuePage />;
       case 'inventory':
         return <InventoryPage />;
       case 'tech_library':

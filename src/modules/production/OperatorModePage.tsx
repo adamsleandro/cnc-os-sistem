@@ -30,7 +30,7 @@ export function OperatorModePage() {
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [isTimerPaused, setIsTimerPaused] = useState(false);
-  const [status, setStatus] = useState<'Running' | 'Setting' | 'Inspection' | 'Maintenance' | 'Breakdown' | 'Offline'>('Offline');
+  const [status, setStatus] = useState<'Running' | 'Setting' | 'Inspection' | 'Maintenance' | 'Breakdown' | 'Offline' | 'Tooling' | 'Material'>('Offline');
   const [currentRecordId, setCurrentRecordId] = useState<string | null>(null);
   const [showOccurrenceModal, setShowOccurrenceModal] = useState(false);
   const [occurrenceType, setOccurrenceType] = useState<'breakdown' | 'material_fail' | 'file_error' | 'tool_break' | 'other'>('other');
@@ -111,9 +111,9 @@ export function OperatorModePage() {
       // 2. Update Machine status
       const firestoreStatus = 
         newStatus === 'Running' ? 'em_operacao' :
-        newStatus === 'Setting' ? 'setup' :
-        newStatus === 'Maintenance' ? 'manutencao' :
-        newStatus === 'Breakdown' ? 'parada' : 'disponivel';
+        (newStatus === 'Setting' || newStatus === 'Inspection' || newStatus === 'Tooling') ? 'setup' :
+        (newStatus === 'Maintenance' || newStatus === 'Breakdown' || newStatus === 'Material') ? 'parada' : 
+        'disponivel';
 
       await updateDoc(doc(db, 'machines', currentMachine.id), { 
         status: firestoreStatus,
@@ -121,8 +121,12 @@ export function OperatorModePage() {
       });
 
       // 3. Start new timer if needed
-      if (mode || newStatus === 'Running' || newStatus === 'Setting') {
-        const startMode = mode || (newStatus === 'Running' ? 'producao' : 'setup');
+      if (mode || newStatus !== 'Offline') {
+        const startMode = mode || (
+          newStatus === 'Running' ? 'producao' : 
+          (newStatus === 'Setting' || newStatus === 'Inspection' || newStatus === 'Tooling') ? 'setup' : 
+          'parada'
+        );
         const recordRef = await addDoc(collection(db, 'time_records'), {
           company_id: profile.company_id,
           order_id: activeOS?.id || 'none',
@@ -262,14 +266,17 @@ export function OperatorModePage() {
         </div>
 
         {/* Main Area */}
-        <div className="flex-1 flex flex-col p-4 space-y-4">
+        <div className="flex-1 flex flex-col p-4 space-y-4 overflow-y-auto">
           {/* Status Banner */}
           <div className={cn(
             "w-full py-8 flex items-center justify-center rounded-sm border-4 border-slate-800 shadow-[4px_4px_0_rgba(0,0,0,0.2)]",
             status === 'Running' ? "bg-[#008000]" : 
             status === 'Setting' ? "bg-blue-600" :
             status === 'Breakdown' ? "bg-red-600" :
-            status === 'Inspection' ? "bg-orange-500" : "bg-slate-600"
+            status === 'Inspection' ? "bg-orange-500" : 
+            status === 'Tooling' ? "bg-cyan-600" :
+            status === 'Maintenance' ? "bg-fuchsia-600" :
+            status === 'Material' ? "bg-yellow-500" : "bg-slate-600"
           )}>
              <h2 className="text-5xl font-black text-white italic tracking-widest drop-shadow-lg">{status}</h2>
           </div>
@@ -279,18 +286,18 @@ export function OperatorModePage() {
              {/* Action Buttons */}
              <div className="col-span-5 space-y-4">
                 {[
-                  { id: 'Setting', color: 'blue' },
-                  { id: 'Inspection', color: 'orange' },
-                  { id: 'Tooling', color: 'cyan' },
-                  { id: 'Maintenance', color: 'magenta' },
-                  { id: 'Breakdown', color: 'red' },
-                  { id: 'Material', color: 'yellow' },
-                  { id: 'OK to Run', color: 'green', status: 'Running' },
-                  { id: 'Finish Job', color: 'emerald', status: 'Finish' }
+                  { id: 'Setting', color: 'bg-blue-500' },
+                  { id: 'Inspection', color: 'bg-orange-500' },
+                  { id: 'Tooling', color: 'bg-cyan-500' },
+                  { id: 'Maintenance', color: 'bg-fuchsia-500' },
+                  { id: 'Breakdown', color: 'bg-red-600' },
+                  { id: 'Material', color: 'bg-yellow-500' },
+                  { id: 'OK to Run', color: 'bg-green-500', status: 'Running' },
+                  { id: 'Finish Job', color: 'bg-emerald-500', status: 'Finish' }
                 ].map((btn) => (
                   <div key={btn.id} className="flex gap-4 items-center">
-                    <div className={cn("w-10 h-10 border-4 border-slate-700 rounded-lg", 
-                      btn.id === 'Finish Job' ? 'bg-[#00A36C]' : `bg-${btn.color}-500 shadow-[inset_-2px_-2px_4px_rgba(0,0,0,0.5)]`
+                    <div className={cn("w-10 h-10 border-4 border-slate-700 rounded-lg shadow-[inset_-2px_-2px_4px_rgba(0,0,0,0.5)]", 
+                      btn.id === 'Finish Job' ? 'bg-[#00A36C]' : btn.color
                     )} />
                     <button 
                       onClick={() => btn.status === 'Finish' ? handleFinishOS() : handleAction((btn.status || btn.id) as any)}
@@ -306,7 +313,10 @@ export function OperatorModePage() {
              <div className="col-span-7 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                    <div className="col-span-2">
-                      <IndustrialCuttingCanvas machineType={currentMachine?.type || 'laser_fiber'} />
+                      <IndustrialCuttingCanvas 
+                        machineType={currentMachine?.type || 'laser_fiber'} 
+                        svgDataUrl={(activeOS as any)?.svgDataUrl || (activeOS as any)?.thumbnail_url || undefined}
+                      />
                    </div>
                    
                    <div className="bg-white border-2 border-slate-400 p-4 rounded-sm shadow-[2px_2px_0_rgba(0,0,0,0.1)]">
